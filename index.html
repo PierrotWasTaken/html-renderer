@@ -235,7 +235,7 @@
         <!-- Parsing Progress Bar Overlay -->
         <div id="game-progress-overlay" class="absolute inset-0 z-40 bg-[#111] flex flex-col items-center justify-center">
             <i data-lucide="globe" class="text-gray-600 mb-6 animate-spin w-12 h-12"></i>
-            <h2 class="text-xl font-bold text-gray-200 mb-8">Fetching & Parsing Client...</h2>
+            <h2 class="text-xl font-bold text-gray-200 mb-8">Fetching & Extracting Client...</h2>
             <div class="w-96 h-2 bg-gray-800 rounded-full overflow-hidden relative">
                <div id="game-progress-bar" class="absolute top-0 left-0 h-full bg-[#3c8527] transition-all duration-300 ease-out" style="width: 0%"></div>
             </div>
@@ -300,7 +300,7 @@
                     <input type="text" id="import-name" class="w-full bg-[#1a1a1a] border border-[#3a3a3a] rounded px-3 py-2 text-white focus:outline-none focus:border-[#3c8527]" placeholder="e.g. My Custom Eaglercraft">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">HTML URL</label>
+                    <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">HTML/ZIP URL</label>
                     <input type="text" id="import-url" class="w-full bg-[#1a1a1a] border border-[#3a3a3a] rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-[#3c8527]" placeholder="https://...">
                 </div>
             </div>
@@ -716,21 +716,8 @@
 
         // --- GAME LAUNCH & VORTE UI ---
 
-        // Helper function that attempts to fetch the HTML directly, and if that fails, 
-        // uses a proxy to bypass the redirect/attachment header
+        // Helper function to fetch the raw HTML via a CORS proxy
         async function fetchClientHTML(url) {
-            try {
-                // First try directly. This works if the file is hosted on GitHub Pages or a normal server
-                const directRes = await fetch(url, {
-                    headers: { 'Accept': 'text/html,application/xhtml+xml' }
-                });
-                if (directRes.ok) return await directRes.text();
-            } catch (e) {
-                console.log("Direct fetch blocked. Attempting to fetch content via proxy to resolve redirect...");
-            }
-
-            // If direct fetch fails (e.g. GitHub Releases block cross-origin requests),
-            // use a proxy that follows the redirect and extracts the content.
             const proxyUrls = [
                 `https://corsproxy.io/?${encodeURIComponent(url)}`,
                 `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
@@ -758,7 +745,7 @@
             els.vorteUiContainer.classList.add('hide');
             
             const displayUrl = state.activeVersion.url.length > 30 ? state.activeVersion.url.substring(0, 30) + '...' : state.activeVersion.url;
-            els.gameProgressText.innerText = `Loading Client: ${displayUrl}`;
+            els.gameProgressText.innerText = `Fetching HTML via Proxy: ${displayUrl}`;
             
             let progress = 0;
             state.progressInterval = setInterval(() => {
@@ -772,7 +759,7 @@
                     clearInterval(state.progressInterval);
                     els.gameProgressBar.style.width = `100%`;
                     
-                    // Inject the HTML directly into the iframe's document
+                    // Inject the fetched HTML directly into the iframe's document
                     setTimeout(() => {
                         els.gameIframe.src = "about:blank"; // Reset
                         setTimeout(() => {
@@ -790,7 +777,7 @@
                 .catch(err => {
                     clearInterval(state.progressInterval);
                     els.gameProgressBar.style.width = `100%`;
-                    console.warn("Fetch blocked. Showing error screen.", err);
+                    console.warn("Proxy Fetch failed. Showing error screen.", err);
                     
                     setTimeout(() => {
                         els.gameIframe.src = "about:blank";
@@ -799,12 +786,11 @@
                             doc.open();
                             doc.write(`
                                 <html><body style="color:white;background:#111;text-align:center;padding:50px;font-family:sans-serif;">
-                                    <h2>Client Load Error</h2>
-                                    <p>Attempted to fetch: <span style="color:#ffaa00">${state.activeVersion.url}</span></p>
-                                    <p style="color:red;font-weight:bold;">Error: The browser blocked the request (CORS) or the network failed.</p>
+                                    <h2>Client Fetch Error</h2>
+                                    <p>Attempted to load: <span style="color:#ffaa00">${state.activeVersion.url}</span></p>
+                                    <p style="color:red;font-weight:bold;">Error: The CORS proxies could not fetch the file.</p>
                                     <p style="max-width:600px;margin:15px auto;line-height:1.6;">
-                                        Note: <b>GitHub Release links</b> cannot be fetched directly cross-origin.
-                                        To fix this without relying on a proxy, you must host your client on a regular web server or <b>GitHub Pages</b> (e.g., <i>username.github.io/repo/client.html</i>).
+                                        The URL might be unreachable, or the public CORS proxies are currently rate-limiting large downloads.
                                     </p>
                                     <p style="color:#666;font-size:12px;margin-top:20px;">Details: ${err.message}</p>
                                 </body></html>
