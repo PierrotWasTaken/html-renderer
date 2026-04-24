@@ -242,8 +242,8 @@
             <p id="game-progress-text" class="text-gray-500 text-xs mt-3 font-mono"></p>
         </div>
 
-        <!-- The Game Iframe -->
-        <iframe id="game-iframe" class="w-full h-full border-none pointer-events-auto bg-black" allow="fullscreen; pointer-lock;" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms"></iframe>
+        <!-- The Game Iframe (Removed 'sandbox' attribute to allow Eaglercraft WebGL/WASM/Storage to run) -->
+        <iframe id="game-iframe" class="w-full h-full border-none pointer-events-auto bg-black" allow="fullscreen; pointer-lock;"></iframe>
 
         <!-- Vorte UI System -->
         <div id="vorte-ui-container" class="hide">
@@ -335,7 +335,6 @@
             },
             isDropdownOpen: false,
             fetchError: null,
-            blobUrl: null,
             progressInterval: null
         };
 
@@ -700,16 +699,22 @@
             localStorage.setItem('eagler_settings', JSON.stringify(state.userSettings));
         }
 
-        // --- GAME LAUNCH & VORTE UI ---
-        async function fetchClientHTML(url) {
-            // Fetch directly without CORS proxies as requested
-            const res = await fetch(url);
-            if (!res.ok) {
-                throw new Error(`HTTP Error Status: ${res.status}`);
+        function showVorteUI() {
+            if (state.userSettings.externalUI) {
+                els.vorteUiContainer.classList.remove('hide');
+                els.vorteActiveName.innerText = state.activeVersion.name;
+                
+                // Show tip
+                els.vorteTip.classList.remove('opacity-0', '-translate-x-8');
+                els.vorteTip.classList.add('opacity-100', 'translate-x-0');
+                setTimeout(() => {
+                    els.vorteTip.classList.remove('opacity-100', 'translate-x-0');
+                    els.vorteTip.classList.add('opacity-0', '-translate-x-8');
+                }, 5000);
             }
-            return await res.text();
         }
 
+        // --- GAME LAUNCH & VORTE UI ---
         function launchGame() {
             if (!state.activeVersion) return;
             
@@ -720,7 +725,7 @@
             els.vorteUiContainer.classList.add('hide');
             
             const displayUrl = state.activeVersion.url.length > 30 ? state.activeVersion.url.substring(0, 30) + '...' : state.activeVersion.url;
-            els.gameProgressText.innerText = `Fetching HTML from: ${displayUrl}`;
+            els.gameProgressText.innerText = `Loading Client: ${displayUrl}`;
             
             let progress = 0;
             state.progressInterval = setInterval(() => {
@@ -729,51 +734,71 @@
                 els.gameProgressBar.style.width = `${progress}%`;
             }, 300);
 
-            fetchClientHTML(state.activeVersion.url)
+            // Attempt to fetch raw HTML using explicitly GET
+            fetch(state.activeVersion.url, { 
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml'
+                }
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP Error Status: ${res.status}`);
+                    return res.text();
+                })
                 .then(html => {
                     clearInterval(state.progressInterval);
                     els.gameProgressBar.style.width = `100%`;
                     
+                    // Inject the HTML directly into the iframe's document instead of using Blob URLs
                     setTimeout(() => {
-                        const blob = new Blob([html], { type: 'text/html' });
-                        state.blobUrl = URL.createObjectURL(blob);
-                        els.gameIframe.src = state.blobUrl;
-                        
-                        els.gameProgressOverlay.classList.add('hide');
-                        els.gameIframe.classList.remove('hide');
-                        
-                        if (state.userSettings.externalUI) {
-                            els.vorteUiContainer.classList.remove('hide');
-                            els.vorteActiveName.innerText = state.activeVersion.name;
-                            
-                            // Show tip
-                            els.vorteTip.classList.remove('opacity-0', '-translate-x-8');
-                            els.vorteTip.classList.add('opacity-100', 'translate-x-0');
-                            setTimeout(() => {
-                                els.vorteTip.classList.remove('opacity-100', 'translate-x-0');
-                                els.vorteTip.classList.add('opacity-0', '-translate-x-8');
-                            }, 5000);
-                        }
-                    }, 500);
+                        els.gameIframe.src = "about:blank"; // Reset
+                        setTimeout(() => {
+                            const doc = els.gameIframe.contentWindow.document;
+                            doc.open();
+                            doc.write(html);
+                            doc.close();
+
+                            els.gameProgressOverlay.classList.add('hide');
+                            els.gameIframe.classList.remove('hide');
+                            showVorteUI();
+                        }, 50);
+                    }, 100);
                 })
                 .catch(err => {
                     clearInterval(state.progressInterval);
-                    console.warn("Failed to fetch HTML:", err);
-                    const errorHtml = `<html><body style="color:white;background:#111;text-align:center;padding:50px;font-family:sans-serif;"><h2>Client Load Error</h2><p>Attempted to fetch: ${state.activeVersion.url}</p><p style="color:red;">Error: Failed to fetch the HTML directly.</p><p>Details: ${err.message || 'Network error / CORS block'}</p></body></html>`;
-                    const blob = new Blob([errorHtml], { type: 'text/html' });
-                    state.blobUrl = URL.createObjectURL(blob);
-                    els.gameIframe.src = state.blobUrl;
+                    els.gameProgressBar.style.width = `100%`;
+                    console.warn("Fetch blocked. Showing error screen instead of downloading.", err);
                     
-                    els.gameProgressOverlay.classList.add('hide');
-                    els.gameIframe.classList.remove('hide');
+                    // Removed the iframe.src fallback here!
+                    // Setting iframe.src to a GitHub Release link is what forces the download.
+                    setTimeout(() => {
+                        els.gameIframe.src = "about:blank";
+                        setTimeout(() => {
+                            const doc = els.gameIframe.contentWindow.document;
+                            doc.open();
+                            doc.write(`
+                                <html><body style="color:white;background:#111;text-align:center;padding:50px;font-family:sans-serif;">
+                                    <h2>Client Load Error</h2>
+                                    <p>Attempted to fetch: <span style="color:#ffaa00">${state.activeVersion.url}</span></p>
+                                    <p style="color:red;font-weight:bold;">Error: The browser blocked the request (CORS) or the network failed.</p>
+                                    <p style="max-width:600px;margin:15px auto;line-height:1.6;">
+                                        Note: <b>GitHub Release links</b> cannot be fetched directly. If you put them in an iframe, the browser forces a file download. 
+                                        To fix this without using a proxy, you must host your client on <b>GitHub Pages</b> (e.g., <i>username.github.io/repo/client.html</i>) or a regular web server.
+                                    </p>
+                                    <p style="color:#666;font-size:12px;margin-top:20px;">Details: ${err.message}</p>
+                                </body></html>
+                            `);
+                            doc.close();
+
+                            els.gameProgressOverlay.classList.add('hide');
+                            els.gameIframe.classList.remove('hide');
+                            showVorteUI();
+                        }, 50);
+                    }, 100);
                 });
         }
 
         function quitGame() {
-            if (state.blobUrl) {
-                URL.revokeObjectURL(state.blobUrl);
-                state.blobUrl = null;
-            }
             els.gameIframe.src = "about:blank"; // Clear memory
             
             els.gameScreen.classList.add('hide');
