@@ -715,6 +715,39 @@
         }
 
         // --- GAME LAUNCH & VORTE UI ---
+
+        // Helper function that attempts to fetch the HTML directly, and if that fails, 
+        // uses a proxy to bypass the redirect/attachment header
+        async function fetchClientHTML(url) {
+            try {
+                // First try directly. This works if the file is hosted on GitHub Pages or a normal server
+                const directRes = await fetch(url, {
+                    headers: { 'Accept': 'text/html,application/xhtml+xml' }
+                });
+                if (directRes.ok) return await directRes.text();
+            } catch (e) {
+                console.log("Direct fetch blocked. Attempting to fetch content via proxy to resolve redirect...");
+            }
+
+            // If direct fetch fails (e.g. GitHub Releases block cross-origin requests),
+            // use a proxy that follows the redirect and extracts the content.
+            const proxyUrls = [
+                `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+            ];
+
+            let lastError;
+            for (const proxy of proxyUrls) {
+                try {
+                    const res = await fetch(proxy);
+                    if (res.ok) return await res.text();
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+            throw lastError || new Error("All proxy fetch attempts failed.");
+        }
+
         function launchGame() {
             if (!state.activeVersion) return;
             
@@ -734,22 +767,12 @@
                 els.gameProgressBar.style.width = `${progress}%`;
             }, 300);
 
-            // Attempt to fetch raw HTML using explicitly GET
-            fetch(state.activeVersion.url, { 
-                method: 'GET',
-                headers: {
-                    'Accept': 'text/html,application/xhtml+xml,application/xml'
-                }
-            })
-                .then(res => {
-                    if (!res.ok) throw new Error(`HTTP Error Status: ${res.status}`);
-                    return res.text();
-                })
+            fetchClientHTML(state.activeVersion.url)
                 .then(html => {
                     clearInterval(state.progressInterval);
                     els.gameProgressBar.style.width = `100%`;
                     
-                    // Inject the HTML directly into the iframe's document instead of using Blob URLs
+                    // Inject the HTML directly into the iframe's document
                     setTimeout(() => {
                         els.gameIframe.src = "about:blank"; // Reset
                         setTimeout(() => {
@@ -767,10 +790,8 @@
                 .catch(err => {
                     clearInterval(state.progressInterval);
                     els.gameProgressBar.style.width = `100%`;
-                    console.warn("Fetch blocked. Showing error screen instead of downloading.", err);
+                    console.warn("Fetch blocked. Showing error screen.", err);
                     
-                    // Removed the iframe.src fallback here!
-                    // Setting iframe.src to a GitHub Release link is what forces the download.
                     setTimeout(() => {
                         els.gameIframe.src = "about:blank";
                         setTimeout(() => {
@@ -782,8 +803,8 @@
                                     <p>Attempted to fetch: <span style="color:#ffaa00">${state.activeVersion.url}</span></p>
                                     <p style="color:red;font-weight:bold;">Error: The browser blocked the request (CORS) or the network failed.</p>
                                     <p style="max-width:600px;margin:15px auto;line-height:1.6;">
-                                        Note: <b>GitHub Release links</b> cannot be fetched directly. If you put them in an iframe, the browser forces a file download. 
-                                        To fix this without using a proxy, you must host your client on <b>GitHub Pages</b> (e.g., <i>username.github.io/repo/client.html</i>) or a regular web server.
+                                        Note: <b>GitHub Release links</b> cannot be fetched directly cross-origin.
+                                        To fix this without relying on a proxy, you must host your client on a regular web server or <b>GitHub Pages</b> (e.g., <i>username.github.io/repo/client.html</i>).
                                     </p>
                                     <p style="color:#666;font-size:12px;margin-top:20px;">Details: ${err.message}</p>
                                 </body></html>
