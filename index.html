@@ -3,488 +3,813 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Offline Web Engine</title>
+    <title>Eaglercraft Launcher</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --surface: #1e293b;
-            --border: #334155;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.5);
-            --success: #10b981;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Center Drop Zone UI */
-        #setup-ui {
-            width: 100%;
-            max-width: 600px;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            z-index: 10;
-        }
-
-        .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 16px;
-            padding: 4rem 2rem;
-            text-align: center;
-            background-color: var(--surface);
-            transition: all 0.3s ease;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .drop-zone.dragover {
-            border-color: var(--accent);
-            background-color: rgba(59, 130, 246, 0.1);
-            box-shadow: 0 0 20px var(--accent-glow);
-        }
-
-        .drop-zone svg {
-            width: 48px;
-            height: 48px;
-            color: var(--accent);
-            margin-bottom: 1rem;
-        }
-
-        .drop-zone h2 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-
-        .drop-zone p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-
-        #file-input {
-            display: none;
-        }
-
-        /* Progress UI */
-        #progress-ui {
-            display: none;
-            background-color: var(--surface);
-            padding: 2rem;
-            border-radius: 16px;
-            border: 1px solid var(--border);
-            text-align: center;
-            width: 100%;
-        }
-
-        .progress-bar-container {
-            width: 100%;
-            height: 8px;
-            background-color: var(--bg-color);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 1.5rem 0 1rem;
-            position: relative;
-        }
-
-        #progress-bar {
-            height: 100%;
-            width: 0%;
-            background-color: var(--accent);
-            border-radius: 4px;
-            transition: width 0.1s linear;
-        }
-
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        #status-text {
-            font-weight: 500;
-            color: var(--text-main);
-            margin-bottom: 0.5rem;
-        }
-
-        /* Iframe & Runner UI */
-        #runner-container {
-            display: none;
-            width: 100vw;
-            height: 100vh;
-            position: absolute;
-            top: 0;
-            left: 0;
-            background-color: #000;
-        }
-
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background-color: #fff;
-            /* Remove outlines when focused */
-            outline: none;
-        }
-
-        /* Invisible hover zone in the top right to trigger the menu */
-        #control-hover-zone {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 250px;
-            height: 150px;
-            z-index: 90;
-        }
-
-        /* Floating Controls */
-        #floating-controls {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            opacity: 0;
-            transition: opacity 0.4s ease;
-            z-index: 100;
-            pointer-events: none;
-        }
-
-        /* Show controls when hovering the zone, hovering the controls, or when forced by JS */
-        #control-hover-zone:hover ~ #floating-controls,
-        #floating-controls:hover,
-        #floating-controls.force-show {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        #hint-tooltip {
-            background-color: rgba(15, 23, 42, 0.9);
-            color: var(--text-main);
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            white-space: nowrap;
-            opacity: 1;
-            transition: opacity 0.5s ease;
-            pointer-events: none; /* Allows hover logic to work smoothly */
-        }
-
-        .control-btn {
-            background-color: rgba(15, 23, 42, 0.9);
-            backdrop-filter: blur(4px);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-
-        .control-btn:hover {
-            background-color: var(--accent);
-            transform: translateY(-2px);
-        }
-
-        .control-btn svg {
-            width: 24px;
-            height: 24px;
-        }
-
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #4a4a4a; border-radius: 10px; border: 2px solid #2b2b2b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #6a6a6a; }
+        .drag-area { -webkit-app-region: drag; }
+        .drag-area button, .drag-area input { -webkit-app-region: no-drag; }
+        .hide { display: none !important; }
     </style>
 </head>
-<body>
+<body class="bg-[#202020] text-gray-200 font-sans select-none overflow-hidden h-screen w-screen flex flex-col border border-[#3c3c3c] shadow-2xl">
 
-    <!-- Center Setup Screen -->
-    <div id="setup-ui">
-        <label class="drop-zone" id="drop-zone">
-            <input type="file" id="file-input" multiple>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            <h2>Drop files to run</h2>
-            <p>Drag an HTML file here.<br><strong>WASM / JS support:</strong> Drop your HTML and `.wasm` files together, and we'll link them automatically.</p>
-        </label>
+    <!-- LOADING SCREEN -->
+    <div id="loading-screen" class="flex flex-col items-center justify-center h-full w-full absolute inset-0 z-50 bg-[#202020]">
+        <i data-lucide="box" class="text-[#3c8527] mb-6 animate-bounce w-16 h-16"></i>
+        <h1 class="text-2xl font-bold mb-2 tracking-wider">EAGLERCRAFT</h1>
+        <div class="w-64 h-1 bg-[#1a1a1a] rounded-full overflow-hidden mb-2">
+            <div class="h-full bg-[#3c8527] w-1/2 animate-pulse rounded-full"></div>
+        </div>
+        <p id="loading-text" class="text-sm text-gray-400">Initializing Launcher...</p>
+    </div>
 
-        <div id="progress-ui">
-            <div id="status-text">Parsing Engine...</div>
-            <div class="progress-bar-container">
-                <div id="progress-bar"></div>
+    <!-- MAIN LAUNCHER VIEW -->
+    <div id="launcher-screen" class="flex flex-col h-full w-full hide">
+        <!-- TITLE BAR -->
+        <div class="flex items-center justify-between h-8 bg-[#181818] px-3 border-b border-[#2a2a2a] drag-area shrink-0">
+            <div class="flex items-center space-x-2 text-xs font-semibold text-gray-400">
+                <i data-lucide="box" class="text-[#3c8527] w-3 h-3"></i>
+                <span>EAGLERCRAFT LAUNCHER</span>
             </div>
-            <div class="stats">
-                <span id="percent-text">0%</span>
-                <span id="time-text">Calculating...</span>
+            <div class="flex items-center space-x-4">
+                <button class="text-gray-400 hover:text-white transition-colors"><i data-lucide="minus" class="w-4 h-4"></i></button>
+                <button class="text-gray-400 hover:text-white transition-colors"><i data-lucide="square" class="w-3.5 h-3.5"></i></button>
+                <button class="text-gray-400 hover:text-red-500 transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+        </div>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- SIDEBAR -->
+            <div class="w-64 bg-[#1e1e1e] border-r border-[#2a2a2a] flex flex-col justify-between shrink-0">
+                <div class="flex-1 overflow-y-auto py-4 custom-scrollbar">
+                    <div class="px-4 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Games</div>
+                    <div class="space-y-1 px-2">
+                        <button id="btn-sidebar-play" class="w-full flex items-center space-x-3 px-3 py-2 rounded-md shadow-sm border-l-4 transition-all bg-[#3b3b3b] text-white border-[#3c8527]" onclick="setTab('play')">
+                            <i data-lucide="box" class="w-5 h-5 text-gray-100"></i>
+                            <span class="font-medium text-sm truncate">Eaglercraft</span>
+                        </button>
+                    </div>
+
+                    <div class="mt-8 px-4 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Account</div>
+                    <div class="space-y-1 px-2">
+                        <div class="w-full flex items-center space-x-3 px-3 py-2 rounded-md border-l-4 border-transparent">
+                            <div class="w-6 h-6 rounded bg-[#3c8527] flex items-center justify-center text-white text-xs font-bold">L</div>
+                            <div class="flex flex-col items-start flex-1 overflow-hidden">
+                                <span class="font-medium text-sm text-gray-200 truncate">Local User</span>
+                                <span class="text-[10px] text-gray-500 truncate">Offline Profile</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 border-t border-[#2a2a2a] space-y-2">
+                    <button id="btn-sidebar-settings" class="w-full flex items-center space-x-3 px-3 py-2 rounded-md transition-all text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200 border-l-4 border-transparent" onclick="setTab('settings')">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        <span class="font-medium text-sm">Settings</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- MAIN CONTENT AREA -->
+            <div class="flex-1 flex flex-col relative bg-[#2b2b2b]">
+                <!-- Top Navigation Tabs -->
+                <div class="h-14 flex items-center px-6 border-b border-[#2a2a2a] bg-[#242424] shrink-0 z-10">
+                    <div class="flex space-x-1">
+                        <button id="tab-play" class="px-4 py-4 text-sm font-semibold transition-colors border-b-2 relative text-white border-[#3c8527]" onclick="setTab('play')">Play</button>
+                        <button id="tab-installations" class="px-4 py-4 text-sm font-semibold transition-colors border-b-2 relative text-gray-400 border-transparent hover:text-gray-200 hover:bg-white/5" onclick="setTab('installations')">Installations</button>
+                        <button id="tab-settings" class="px-4 py-4 text-sm font-semibold transition-colors border-b-2 relative text-gray-400 border-transparent hover:text-gray-200 hover:bg-white/5" onclick="setTab('settings')">Settings</button>
+                    </div>
+                </div>
+
+                <!-- Dynamic Content Area -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar relative pb-32">
+                    
+                    <!-- PLAY TAB -->
+                    <div id="view-play" class="">
+                        <!-- Hero Banner -->
+                        <div class="relative w-full h-72 bg-gradient-to-b from-[#1a1a1a] to-[#2b2b2b] overflow-hidden group">
+                            <div class="absolute inset-0 opacity-20" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')"></div>
+                            <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#2b2b2b] to-transparent"></div>
+                            <div class="absolute bottom-6 left-8 flex flex-col">
+                                <span class="text-[#4b9b35] font-bold text-xs uppercase tracking-wider mb-2">Latest Announcement</span>
+                                <h1 class="text-4xl font-extrabold text-white mb-2 shadow-sm drop-shadow-lg">Tuff Client UT13</h1>
+                                <p class="text-gray-200 text-sm max-w-md drop-shadow-md">Play the latest version of Tuff Client featuring 1.21.11 mappings directly in your browser. Install it from the Installations tab now!</p>
+                            </div>
+                        </div>
+
+                        <!-- News Grid -->
+                        <div class="px-8 py-6">
+                            <h2 class="text-xl font-bold text-white mb-4">Latest News</h2>
+                            <div id="news-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <!-- Populated by JS -->
+                            </div>
+
+                            <div id="no-clients-warning" class="mt-8 bg-[#242424] border border-[#3a3a3a] rounded-lg p-8 text-center max-w-2xl mx-auto hide">
+                                <i data-lucide="globe" class="w-12 h-12 mx-auto text-[#3c8527] mb-4 opacity-80"></i>
+                                <h3 class="text-xl font-bold text-white mb-2">No Clients Installed</h3>
+                                <p class="text-gray-400 mb-6">You need to install a client before you can play.</p>
+                                <button onclick="setTab('installations')" class="bg-[#333] hover:bg-[#444] border border-[#555] px-6 py-3 rounded-lg font-bold text-white transition-colors flex items-center justify-center space-x-2 mx-auto">
+                                    <i data-lucide="folder-open" class="w-5 h-5"></i>
+                                    <span>Browse Installations</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- INSTALLATIONS TAB -->
+                    <div id="view-installations" class="p-8 hide">
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white">Installations</h2>
+                                <p class="text-sm text-gray-400">Download configurations to your local machine.</p>
+                            </div>
+                            <button onclick="toggleModal(true)" class="flex items-center space-x-2 bg-[#333] hover:bg-[#444] border border-[#555] px-4 py-2 rounded text-sm font-semibold transition-colors">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>Import External Client</span>
+                            </button>
+                        </div>
+
+                        <div id="fetch-error-box" class="bg-red-900/40 border border-red-500/50 rounded-lg p-4 mb-6 flex items-start space-x-3 hide">
+                            <i data-lucide="info" class="text-red-400 shrink-0 mt-0.5 w-4 h-4"></i>
+                            <div>
+                                <h4 class="font-bold text-red-400 text-sm">Manifest Fetch Error</h4>
+                                <p id="fetch-error-text" class="text-xs text-red-300 mt-1"></p>
+                                <p class="text-xs text-gray-400 mt-2">Showing fallback installations for now. Verify your GitHub URL in the Settings tab.</p>
+                            </div>
+                        </div>
+
+                        <div id="installations-container" class="space-y-8">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- SETTINGS TAB -->
+                    <div id="view-settings" class="p-8 max-w-3xl hide">
+                        <h2 class="text-2xl font-bold text-white mb-6">Launcher Settings</h2>
+                        <div class="space-y-6">
+                            <div class="bg-[#242424] border border-[#3a3a3a] p-5 rounded-lg">
+                                <h3 class="text-lg font-bold text-gray-200 mb-2">Preferences</h3>
+                                <div class="flex items-center justify-between mt-4">
+                                    <div>
+                                        <p class="font-bold text-sm text-gray-300">Enable External UI (Vorte UI)</p>
+                                        <p class="text-xs text-gray-500 mt-1 max-w-sm">Provides an in-game overlay menu when you hover on the left edge of your screen. Allows quitting to launcher and toggling fullscreen.</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="setting-vorte" class="sr-only peer" onchange="updateSettings()">
+                                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3c8527]"></div>
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between mt-4 border-t border-[#3a3a3a] pt-4">
+                                    <div>
+                                        <p class="font-bold text-sm text-gray-300">Show Installation URLs</p>
+                                        <p class="text-xs text-gray-500 mt-1 max-w-sm">Display the source link under each client in the Installations tab.</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="setting-show-urls" class="sr-only peer" onchange="updateSettings(); renderInstallations();">
+                                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3c8527]"></div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="bg-[#242424] border border-[#3a3a3a] p-5 rounded-lg">
+                                <h3 class="text-lg font-bold text-gray-200 mb-2">Manifest Configuration</h3>
+                                <p class="text-xs text-gray-500 mb-4">Set the URL to fetch available Eaglercraft installations. The JSON structure must match the required format.</p>
+                                <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">Manifest JSON URL</label>
+                                <div class="flex space-x-2">
+                                    <input type="text" id="setting-url" class="flex-1 bg-[#1a1a1a] border border-[#3a3a3a] rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-[#3c8527]">
+                                    <button onclick="updateSettings(); window.location.reload();" class="px-4 py-2 bg-[#333] hover:bg-[#444] border border-[#555] rounded text-sm font-bold text-white transition-colors">Apply & Reload</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- BOTTOM PLAY BAR -->
+                <div id="play-bar" class="absolute bottom-0 left-0 w-full h-24 bg-[#202020] border-t border-[#3a3a3a] flex items-center justify-between px-8 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.2)] hide">
+                    
+                    <!-- Version Selector -->
+                    <div class="relative w-72">
+                        <button onclick="toggleDropdown()" class="w-full flex flex-col items-start bg-[#2b2b2b] hover:bg-[#333333] border border-[#404040] rounded px-4 py-2 transition-colors focus:outline-none focus:ring-1 focus:ring-[#3c8527]">
+                            <div class="flex items-center justify-between w-full">
+                                <span id="active-version-type" class="text-xs font-bold text-gray-400 uppercase">Select Installation</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            </div>
+                            <span id="active-version-name" class="text-sm font-medium text-gray-200 truncate w-full text-left">None selected</span>
+                        </button>
+                        
+                        <!-- Dropdown Menu -->
+                        <div id="version-dropdown" class="absolute bottom-full left-0 w-full mb-2 bg-[#2b2b2b] border border-[#404040] rounded-md shadow-xl overflow-hidden z-40 py-1 max-h-64 overflow-y-auto custom-scrollbar hide">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Central Giant Play Button -->
+                    <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <button id="btn-play" onclick="launchGame()" class="relative group flex items-center justify-center w-64 h-14 rounded shadow-lg overflow-hidden transition-all duration-200 bg-[#3c8527] hover:bg-[#43962b] hover:shadow-green-900/50">
+                            <div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div class="absolute inset-1 border-2 rounded-[2px] border-[#4b9b35]"></div>
+                            <span class="font-black text-2xl tracking-widest z-10 drop-shadow-md relative text-white">PLAY</span>
+                        </button>
+                    </div>
+
+                    <!-- Right Side Options -->
+                    <div class="flex flex-col items-end space-y-1 text-xs text-gray-500">
+                        <span id="installed-count-text">0 Installed</span>
+                        <button onclick="setTab('installations')" class="text-[#3c8527] hover:underline">Manage</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Active Runner Screen -->
-    <div id="runner-container">
-        <!-- tabindex="0" makes the iframe focusable natively by the browser -->
-        <iframe id="output-frame" tabindex="0"
-            allow="fullscreen; pointer-lock; autoplay; microphone; camera; display-capture; midi; xr-spatial-tracking" 
-            allowfullscreen="true">
-        </iframe>
+    <!-- IN-GAME VIEW (IFRAME & VORTE UI) -->
+    <div id="game-screen" class="fixed inset-0 bg-black w-full h-full overflow-hidden flex flex-col font-sans z-50 hide">
         
-        <!-- Invisible trigger zone -->
-        <div id="control-hover-zone"></div>
-        
-        <div id="floating-controls">
-            <div id="hint-tooltip">Hover your mouse here to show these</div>
-            <button class="control-btn" id="btn-fullscreen" title="Fullscreen">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
-            </button>
+        <!-- Parsing Progress Bar Overlay -->
+        <div id="game-progress-overlay" class="absolute inset-0 z-40 bg-[#111] flex flex-col items-center justify-center">
+            <i data-lucide="globe" class="text-gray-600 mb-6 animate-spin w-12 h-12"></i>
+            <h2 class="text-xl font-bold text-gray-200 mb-8">Fetching & Parsing Client...</h2>
+            <div class="w-96 h-2 bg-gray-800 rounded-full overflow-hidden relative">
+               <div id="game-progress-bar" class="absolute top-0 left-0 h-full bg-[#3c8527] transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+            <p id="game-progress-text" class="text-gray-500 text-xs mt-3 font-mono"></p>
+        </div>
+
+        <!-- The Game Iframe -->
+        <iframe id="game-iframe" class="w-full h-full border-none pointer-events-auto bg-black" allow="fullscreen; pointer-lock;" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms"></iframe>
+
+        <!-- Vorte UI System -->
+        <div id="vorte-ui-container" class="hide">
+            <!-- Transient Tip -->
+            <div id="vorte-tip" class="absolute left-8 top-1/2 -translate-y-1/2 bg-black/80 backdrop-blur border border-green-500/50 text-white px-6 py-4 rounded-lg shadow-2xl transition-all duration-1000 z-50 pointer-events-none flex items-center space-x-4 opacity-0 -translate-x-8">
+                <i data-lucide="info" class="text-green-400"></i>
+                <div>
+                    <p class="font-bold text-lg">Vorte UI Enabled</p>
+                    <p class="text-sm text-gray-300">Hover here (left edge of screen) to open the menu.</p>
+                </div>
+            </div>
+
+            <!-- Trigger Area -->
+            <div class="absolute left-0 top-0 w-6 h-full z-40 cursor-pointer" onmouseenter="toggleVorte(true)"></div>
+
+            <!-- Vorte Sidebar Overlay -->
+            <div id="vorte-sidebar" class="absolute left-0 top-0 h-full w-72 bg-black/90 backdrop-blur-md border-r border-[#333] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col -translate-x-full" onmouseleave="toggleVorte(false)">
+                <div class="p-6 border-b border-[#333] flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wider">VORTE UI</h2>
+                        <p id="vorte-active-name" class="text-xs text-green-400 font-mono mt-1">Client</p>
+                    </div>
+                    <button onclick="toggleVorte(false)" class="text-gray-400 hover:text-white">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="flex-1 p-4 space-y-2">
+                    <button onclick="toggleFullscreen()" class="w-full flex items-center space-x-3 px-4 py-3 bg-[#222] hover:bg-[#333] rounded text-left text-white font-medium transition-colors border border-transparent hover:border-gray-600">
+                        <i data-lucide="maximize" class="w-4 h-4 text-gray-400"></i>
+                        <span>Toggle Fullscreen</span>
+                    </button>
+                    <button onclick="quitGame()" class="w-full flex items-center space-x-3 px-4 py-3 bg-red-900/20 hover:bg-red-900/50 rounded text-left text-red-400 font-medium transition-colors border border-transparent hover:border-red-800">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Quit to Launcher</span>
+                    </button>
+                </div>
+                <div class="p-4 text-xs text-gray-600 text-center border-t border-[#333]">
+                    External UI provided by Vorte
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD CLIENT MODAL -->
+    <div id="import-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm hide">
+        <div class="bg-[#242424] border border-[#404040] rounded-lg shadow-2xl w-96 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 bg-[#1e1e1e] border-b border-[#3a3a3a]">
+                <h3 class="font-bold text-white">Import External Client</h3>
+                <button onclick="toggleModal(false)" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">Client Name</label>
+                    <input type="text" id="import-name" class="w-full bg-[#1a1a1a] border border-[#3a3a3a] rounded px-3 py-2 text-white focus:outline-none focus:border-[#3c8527]" placeholder="e.g. My Custom Eaglercraft">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">HTML URL</label>
+                    <input type="text" id="import-url" class="w-full bg-[#1a1a1a] border border-[#3a3a3a] rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-[#3c8527]" placeholder="https://...">
+                </div>
+            </div>
+            <div class="flex items-center justify-end px-4 py-3 bg-[#1e1e1e] border-t border-[#3a3a3a] space-x-3">
+                <button onclick="toggleModal(false)" class="px-4 py-2 text-sm text-gray-300 hover:text-white">Cancel</button>
+                <button onclick="saveExtClient()" id="btn-import-save" class="px-4 py-2 bg-[#3c8527] hover:bg-[#43962b] disabled:bg-[#444] disabled:text-gray-500 text-white rounded text-sm font-bold transition-colors">Import</button>
+            </div>
         </div>
     </div>
 
     <script>
-        const setupUi = document.getElementById('setup-ui');
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const progressUi = document.getElementById('progress-ui');
-        const progressBar = document.getElementById('progress-bar');
-        const statusText = document.getElementById('status-text');
-        const percentText = document.getElementById('percent-text');
-        const timeText = document.getElementById('time-text');
-        
-        const runnerContainer = document.getElementById('runner-container');
-        const outputFrame = document.getElementById('output-frame');
-        const btnFullscreen = document.getElementById('btn-fullscreen');
+        // --- CONSTANTS ---
+        const NEWS_ITEMS = [
+            { title: 'Tuff Client UT13 Released', category: 'Announcement', date: 'Today', image: 'bg-gradient-to-br from-green-500 to-emerald-800' },
+            { title: 'New 1.21.11 Mappings Added', category: 'Updates', date: 'Yesterday', image: 'bg-gradient-to-br from-blue-500 to-purple-700' },
+            { title: 'Community Server Showcase', category: 'Community', date: 'Last Week', image: 'bg-gradient-to-br from-orange-400 to-red-600' },
+            { title: 'Eaglercraft Optimization Guide', category: 'Guide', date: '2 Weeks Ago', image: 'bg-gradient-to-br from-yellow-400 to-orange-500' }
+        ];
 
-        let activeWorker = null;
-        let activeBlobUrls = [];
+        // --- STATE ---
+        let state = {
+            activeTab: 'play',
+            manifest: { TC: {}, EC: {} },
+            extClients: [],
+            installedVersions: [],
+            allVersions: [],
+            activeVersion: null,
+            userSettings: {
+                externalUI: true,
+                showUrls: false,
+                manifestUrl: 'https://raw.githubusercontent.com/PierrotWasTaken/html-renderer/refs/heads/main/installations.json'
+            },
+            isDropdownOpen: false,
+            fetchError: null,
+            blobUrl: null,
+            progressInterval: null
+        };
 
-        // --- INLINE WEB WORKER ---
-        const workerScript = `
-            self.onmessage = async function(e) {
-                const { file, mappings } = e.data;
-                const totalBytes = file.size;
+        // --- DOM ELEMENTS ---
+        const els = {
+            loadingScreen: document.getElementById('loading-screen'),
+            loadingText: document.getElementById('loading-text'),
+            launcherScreen: document.getElementById('launcher-screen'),
+            gameScreen: document.getElementById('game-screen'),
+            gameIframe: document.getElementById('game-iframe'),
+            gameProgressOverlay: document.getElementById('game-progress-overlay'),
+            gameProgressBar: document.getElementById('game-progress-bar'),
+            gameProgressText: document.getElementById('game-progress-text'),
+            vorteUiContainer: document.getElementById('vorte-ui-container'),
+            vorteTip: document.getElementById('vorte-tip'),
+            vorteSidebar: document.getElementById('vorte-sidebar'),
+            vorteActiveName: document.getElementById('vorte-active-name'),
+            importModal: document.getElementById('import-modal'),
+            importName: document.getElementById('import-name'),
+            importUrl: document.getElementById('import-url'),
+            playBar: document.getElementById('play-bar'),
+            dropdown: document.getElementById('version-dropdown'),
+            activeVersionType: document.getElementById('active-version-type'),
+            activeVersionName: document.getElementById('active-version-name'),
+            btnPlay: document.getElementById('btn-play'),
+            installedCountText: document.getElementById('installed-count-text')
+        };
+
+        // --- INITIALIZATION ---
+        async function init() {
+            lucide.createIcons();
+            
+            // 1. Load Local Storage
+            els.loadingText.innerText = 'Loading configuration...';
+            try {
+                const sClients = localStorage.getItem('eagler_ext_clients');
+                const sInstalled = localStorage.getItem('eagler_installed');
+                const sSettings = localStorage.getItem('eagler_settings');
                 
-                try {
-                    self.postMessage({ type: 'status', message: 'Reading file data...' });
-                    
-                    const stream = file.stream();
-                    const reader = stream.getReader();
-                    let loadedBytes = 0;
-                    const chunks = [];
+                if (sClients) state.extClients = JSON.parse(sClients);
+                if (sInstalled) state.installedVersions = JSON.parse(sInstalled);
+                if (sSettings) state.userSettings = { ...state.userSettings, ...JSON.parse(sSettings) };
+            } catch (e) { console.error(e); }
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        chunks.push(value);
-                        loadedBytes += value.length;
-                        
-                        if (loadedBytes % (1024 * 256) < 65536) { 
-                            self.postMessage({ type: 'progress', loaded: loadedBytes, total: totalBytes });
-                        }
-                    }
-                    
-                    self.postMessage({ type: 'progress', loaded: totalBytes, total: totalBytes });
-                    self.postMessage({ type: 'status', message: 'Linking WASM & Assets...' });
+            // Sync settings UI
+            document.getElementById('setting-vorte').checked = state.userSettings.externalUI;
+            document.getElementById('setting-show-urls').checked = state.userSettings.showUrls;
+            document.getElementById('setting-url').value = state.userSettings.manifestUrl;
 
-                    const blob = new Blob(chunks);
-                    let text = await blob.text();
-
-                    if (mappings && Object.keys(mappings).length > 0) {
-                        for (const [filename, url] of Object.entries(mappings)) {
-                            text = text.split(filename).join(url);
-                        }
-                    }
-
-                    self.postMessage({ type: 'status', message: 'Booting engine...' });
-                    const finalBlob = new Blob([text], { type: 'text/html;charset=utf-8' });
-                    
-                    self.postMessage({ type: 'done', blob: finalBlob });
-
-                } catch (err) {
-                    self.postMessage({ type: 'error', error: err.message });
-                }
-            };
-        `;
-
-        function processFiles(files) {
-            if (files.length === 0) return;
-
-            let mainHtmlFile = null;
-            const assets = [];
-
-            for (const file of files) {
-                if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
-                    if (!mainHtmlFile || file.name === 'index.html') {
-                        mainHtmlFile = file;
+            // 2. Fetch Manifest
+            els.loadingText.innerText = `Fetching manifest...`;
+            try {
+                const res = await fetch(state.userSettings.manifestUrl);
+                if (res.ok) {
+                    try {
+                        state.manifest = await res.json();
+                    } catch (e) {
+                        state.fetchError = "JSON Syntax Error: Check your manifest file for invalid formatting.";
                     }
                 } else {
-                    assets.push(file);
+                    state.fetchError = `HTTP Error ${res.status}: The manifest file could not be found.`;
                 }
+            } catch (err) {
+                state.fetchError = `Network Error: Fetch blocked by CORS or URL is unreachable.`;
             }
 
-            if (!mainHtmlFile) {
-                alert("Please include at least one HTML file.");
-                return;
+            // Fallback if fetch fails completely
+            if (state.fetchError && Object.keys(state.manifest.TC || {}).length === 0) {
+                state.manifest = {
+                    "TC": { "1.12.2 UT13 (Fallback)": "https://github.com/TuffNetwork/Tuff-Client-Builds/releases/download/1.1UT13/Tuff_Client_Offline_WASM.html" },
+                    "EC": {}
+                };
             }
 
-            dropZone.style.display = 'none';
-            progressUi.style.display = 'block';
-            let startTime = Date.now();
-
-            const mappings = {};
-            for (const asset of assets) {
-                const url = URL.createObjectURL(asset);
-                mappings[asset.name] = url;
-                activeBlobUrls.push(url);
-            }
-
-            const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
-            const workerUrl = URL.createObjectURL(workerBlob);
-            activeWorker = new Worker(workerUrl);
-
-            activeWorker.onmessage = function(e) {
-                const data = e.data;
-
-                if (data.type === 'status') {
-                    statusText.textContent = data.message;
-                } 
-                else if (data.type === 'progress') {
-                    const percent = Math.min(100, Math.round((data.loaded / data.total) * 100));
-                    progressBar.style.width = percent + '%';
-                    percentText.textContent = percent + '%';
-
-                    const elapsed = Date.now() - startTime;
-                    if (elapsed > 500 && data.loaded > 0) {
-                        const speed = data.loaded / elapsed;
-                        const remaining = (data.total - data.loaded) / speed;
-                        timeText.textContent = (remaining / 1000).toFixed(1) + 's remaining';
-                    }
-                } 
-                else if (data.type === 'done') {
-                    activeWorker.terminate();
-                    URL.revokeObjectURL(workerUrl);
-                    
-                    const finalUrl = URL.createObjectURL(data.blob);
-                    activeBlobUrls.push(finalUrl);
-                    
-                    launchIframe(finalUrl);
-                }
-                else if (data.type === 'error') {
-                    alert("Error processing file: " + data.error);
-                }
-            };
-
-            activeWorker.postMessage({ file: mainHtmlFile, mappings: mappings });
-        }
-
-        function launchIframe(url) {
-            setupUi.style.display = 'none';
-            runnerContainer.style.display = 'block';
-            outputFrame.src = url;
-
-            // --- FULL ACCESS FOCUS LOCK ---
-            // This ensures keyboard events always route to the game immediately
-            outputFrame.onload = () => {
-                outputFrame.focus();
-                if (outputFrame.contentWindow) {
-                    outputFrame.contentWindow.focus();
-                }
-            };
+            // 3. Parse Data
+            compileVersions();
             
-            // --- UI 10-SECOND HINT LOGIC ---
-            const controls = document.getElementById('floating-controls');
-            const hint = document.getElementById('hint-tooltip');
+            // 4. Render UI
+            renderNews();
+            updateUI();
             
-            // Force the UI to show initially
-            controls.classList.add('force-show');
-            hint.style.opacity = '1';
-            
-            // After 10 seconds, remove the force-show class and permanently hide the text hint
+            // Hide loading, show launcher
             setTimeout(() => {
-                controls.classList.remove('force-show');
-                hint.style.opacity = '0'; 
-                // After it fades out, remove the hint from DOM so it doesn't take up space
-                setTimeout(() => hint.remove(), 500);
-            }, 10000);
+                els.loadingScreen.classList.add('hide');
+                els.launcherScreen.classList.remove('hide');
+            }, 500);
         }
 
-        // Keep focus locked to the iframe if the user clicks anywhere in the parent window
-        // (Ensures games like Eaglercraft don't drop keyboard inputs)
-        window.addEventListener('click', (e) => {
-            if (runnerContainer.style.display === 'block') {
-                // Don't steal focus if they are actively clicking our custom UI buttons
-                if (!e.target.closest('#floating-controls')) {
-                    outputFrame.focus();
-                    if (outputFrame.contentWindow) {
-                        outputFrame.contentWindow.focus();
-                    }
-                }
+        function compileVersions() {
+            state.allVersions = [];
+            
+            Object.entries(state.manifest.TC || {}).forEach(([name, url]) => {
+                state.allVersions.push({ id: `tc-${name}`, type: 'Tuff Client', name, url });
+            });
+            Object.entries(state.manifest.EC || {}).forEach(([name, url]) => {
+                state.allVersions.push({ id: `ec-${name}`, type: 'Vanilla Eaglercraft', name, url });
+            });
+            state.extClients.forEach(client => {
+                state.allVersions.push({ id: client.id, type: 'External Client', name: client.name, url: client.url });
+            });
+
+            const playable = getPlayableVersions();
+            if (playable.length > 0 && (!state.activeVersion || !playable.find(v => v.id === state.activeVersion.id))) {
+                state.activeVersion = playable[0];
             }
-        });
+        }
 
-        // --- EVENT LISTENERS ---
+        function getPlayableVersions() {
+            return state.allVersions.filter(v => state.installedVersions.includes(v.id) || v.type === 'External Client');
+        }
 
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
+        // --- UI UPDATES ---
+        function setTab(tabId) {
+            state.activeTab = tabId;
+            updateUI();
+        }
 
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            processFiles(e.dataTransfer.files);
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            processFiles(e.target.files);
-        });
-
-        btnFullscreen.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                runnerContainer.requestFullscreen().catch(err => {
-                    console.log(`Error: ${err.message}`);
-                });
+        function toggleDropdown() {
+            state.isDropdownOpen = !state.isDropdownOpen;
+            if (state.isDropdownOpen) {
+                els.dropdown.classList.remove('hide');
             } else {
-                document.exitFullscreen();
+                els.dropdown.classList.add('hide');
+            }
+        }
+
+        function selectVersion(id) {
+            state.activeVersion = state.allVersions.find(v => v.id === id);
+            state.isDropdownOpen = false;
+            els.dropdown.classList.add('hide');
+            updateUI();
+        }
+
+        function updateUI() {
+            // Update Sidebar Tabs
+            const playBtn = document.getElementById('btn-sidebar-play');
+            playBtn.className = `w-full flex items-center space-x-3 px-3 py-2 rounded-md shadow-sm border-l-4 transition-all ${state.activeTab !== 'settings' ? 'bg-[#3b3b3b] text-white border-[#3c8527]' : 'text-gray-400 border-transparent hover:bg-[#2a2a2a]'}`;
+            const playIcon = playBtn.querySelector('svg') || playBtn.querySelector('i');
+            if (playIcon) {
+                playIcon.classList.remove('text-gray-100', 'text-gray-500');
+                playIcon.classList.add(state.activeTab !== 'settings' ? 'text-gray-100' : 'text-gray-500');
             }
             
-            // Return focus to game after clicking fullscreen
-            setTimeout(() => {
-                outputFrame.focus();
-                if (outputFrame.contentWindow) outputFrame.contentWindow.focus();
-            }, 100);
+            const settingsBtn = document.getElementById('btn-sidebar-settings');
+            settingsBtn.className = `w-full flex items-center space-x-3 px-3 py-2 rounded-md transition-all border-l-4 ${state.activeTab === 'settings' ? 'bg-[#2a2a2a] text-white border-transparent' : 'text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200 border-transparent'}`;
+            const settingsIcon = settingsBtn.querySelector('svg') || settingsBtn.querySelector('i');
+            if (settingsIcon) {
+                settingsIcon.classList.remove('text-white', 'text-gray-500');
+                settingsIcon.classList.add(state.activeTab === 'settings' ? 'text-white' : 'text-gray-500');
+            }
+
+            // Update Top Tabs
+            ['play', 'installations', 'settings'].forEach(id => {
+                const btn = document.getElementById(`tab-${id}`);
+                const view = document.getElementById(`view-${id}`);
+                if (state.activeTab === id) {
+                    btn.className = "px-4 py-4 text-sm font-semibold transition-colors border-b-2 relative text-white border-[#3c8527]";
+                    view.classList.remove('hide');
+                } else {
+                    btn.className = "px-4 py-4 text-sm font-semibold transition-colors border-b-2 relative text-gray-400 border-transparent hover:text-gray-200 hover:bg-white/5";
+                    view.classList.add('hide');
+                }
+            });
+
+            // Update Play Bar & Dropdown
+            const playable = getPlayableVersions();
+            if (state.activeTab === 'play' && playable.length > 0) {
+                els.playBar.classList.remove('hide');
+                els.installedCountText.innerText = `${playable.length} Installed`;
+                
+                if (state.activeVersion) {
+                    els.activeVersionType.innerText = state.activeVersion.type;
+                    els.activeVersionName.innerText = state.activeVersion.name;
+                    els.btnPlay.disabled = false;
+                    els.btnPlay.className = "relative group flex items-center justify-center w-64 h-14 rounded shadow-lg overflow-hidden transition-all duration-200 bg-[#3c8527] hover:bg-[#43962b] hover:shadow-green-900/50";
+                    els.btnPlay.querySelector('.absolute.inset-1').className = "absolute inset-1 border-2 rounded-[2px] border-[#4b9b35]";
+                    els.btnPlay.querySelector('span').className = "font-black text-2xl tracking-widest z-10 drop-shadow-md relative text-white";
+                } else {
+                    els.activeVersionType.innerText = "Select Installation";
+                    els.activeVersionName.innerText = "None selected";
+                    els.btnPlay.disabled = true;
+                    els.btnPlay.className = "relative group flex items-center justify-center w-64 h-14 rounded shadow-lg overflow-hidden transition-all duration-200 bg-[#5c5c5c] cursor-not-allowed";
+                    els.btnPlay.querySelector('.absolute.inset-1').className = "absolute inset-1 border-2 rounded-[2px] border-[#6c6c6c]";
+                    els.btnPlay.querySelector('span').className = "font-black text-2xl tracking-widest z-10 drop-shadow-md relative text-gray-400";
+                }
+
+                els.dropdown.innerHTML = playable.map(v => `
+                    <button onclick="selectVersion('${v.id}')" class="w-full text-left px-4 py-2 hover:bg-[#3c8527] hover:text-white transition-colors flex flex-col ${state.activeVersion && state.activeVersion.id === v.id ? 'bg-[#333333] border-l-2 border-[#3c8527]' : ''}">
+                        <span class="text-[10px] font-bold text-gray-400 group-hover:text-gray-200">${v.type}</span>
+                        <span class="text-sm text-gray-200 group-hover:text-white truncate">${v.name}</span>
+                    </button>
+                `).join('');
+            } else {
+                els.playBar.classList.add('hide');
+            }
+
+            // Update Play Tab No Clients Warning
+            const noClientsWarning = document.getElementById('no-clients-warning');
+            if (playable.length === 0) noClientsWarning.classList.remove('hide');
+            else noClientsWarning.classList.add('hide');
+
+            // Render Installations Tab
+            if (state.activeTab === 'installations') renderInstallations();
+        }
+
+        function renderNews() {
+            const container = document.getElementById('news-container');
+            container.innerHTML = NEWS_ITEMS.map(item => `
+                <div class="bg-[#333333] rounded-lg overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all duration-200 border border-[#404040]">
+                    <div class="h-32 w-full ${item.image} relative">
+                        <div class="absolute top-2 left-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-white uppercase tracking-wider">${item.category}</div>
+                    </div>
+                    <div class="p-4 h-24 flex flex-col justify-between">
+                        <h3 class="font-bold text-sm text-gray-100 line-clamp-2">${item.title}</h3>
+                        <span class="text-xs text-gray-400">${item.date}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderInstallations() {
+            const errorBox = document.getElementById('fetch-error-box');
+            if (state.fetchError) {
+                errorBox.classList.remove('hide');
+                document.getElementById('fetch-error-text').innerText = state.fetchError;
+            } else {
+                errorBox.classList.add('hide');
+            }
+
+            let html = '';
+
+            // Tuff Client
+            const tcVersions = state.allVersions.filter(v => v.type === 'Tuff Client');
+            if (tcVersions.length > 0) {
+                html += createSectionHtml('Tuff Client Releases', 'folder-open', 'text-blue-400', tcVersions);
+            }
+
+            // Vanilla Eaglercraft
+            const ecVersions = state.allVersions.filter(v => v.type === 'Vanilla Eaglercraft');
+            if (ecVersions.length > 0) {
+                html += createSectionHtml('Vanilla Eaglercraft', 'box', 'text-orange-400', ecVersions);
+            }
+
+            // External Clients
+            const extHtml = state.extClients.length === 0 
+                ? '<div class="p-6 text-center text-gray-500 text-sm">No external clients imported yet.</div>'
+                : `<div class="divide-y divide-[#333]">` + state.extClients.map(c => {
+                    const displayUrl = c.url.length > 30 ? c.url.substring(0, 30) + '...' : c.url;
+                    return `
+                    <div class="flex items-center justify-between px-6 py-4 hover:bg-[#2b2b2b] group">
+                        <div class="overflow-hidden pr-4 flex-1 min-w-0">
+                            <div class="font-bold text-gray-100 truncate">${c.name}</div>
+                            ${state.userSettings.showUrls ? `<div class="text-xs text-gray-500 font-mono" title="${c.url}">${displayUrl}</div>` : ''}
+                        </div>
+                        <div class="flex space-x-2 shrink-0">
+                            <span class="flex items-center space-x-1 text-xs text-purple-400 bg-purple-900/20 px-2 py-1 rounded mr-2"><i data-lucide="check-circle-2" class="w-3 h-3"></i> <span>Imported</span></span>
+                            <button onclick="setTab('play'); selectVersion('${c.id}')" class="px-4 py-1.5 bg-[#3c8527] hover:bg-[#43962b] rounded text-xs font-bold text-white">SELECT</button>
+                            <button onclick="removeExtClient('${c.id}')" class="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-900/30 rounded" title="Remove"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>`;
+                }).join('') + `</div>`;
+
+            html += `
+                <div class="bg-[#242424] rounded-lg border border-[#3a3a3a] overflow-hidden mt-8">
+                    <div class="bg-[#1e1e1e] px-4 py-3 border-b border-[#3a3a3a] flex items-center space-x-3">
+                        <i data-lucide="globe" class="w-4 h-4 text-purple-400"></i>
+                        <h3 class="font-bold text-gray-200">Locally Imported Clients</h3>
+                    </div>
+                    ${extHtml}
+                </div>
+            `;
+
+            document.getElementById('installations-container').innerHTML = html;
+            lucide.createIcons(); // Refresh icons for dynamically added HTML
+        }
+
+        function createSectionHtml(title, icon, iconColor, versions) {
+            let listHtml = versions.map(v => {
+                const isInstalled = state.installedVersions.includes(v.id);
+                const displayUrl = v.url.length > 30 ? v.url.substring(0, 30) + '...' : v.url;
+                const btnHtml = isInstalled
+                    ? `<span class="flex items-center space-x-1 text-xs text-green-400 bg-green-900/20 px-2 py-1 rounded"><i data-lucide="check-circle-2" class="w-3 h-3"></i> <span>Installed</span></span>
+                       <button onclick="setTab('play'); selectVersion('${v.id}')" class="px-4 py-1.5 bg-[#3c8527] hover:bg-[#43962b] rounded text-xs font-bold text-white">SELECT</button>
+                       <button onclick="handleUninstall('${v.id}')" class="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-900/30 rounded" title="Uninstall"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
+                    : `<button onclick="handleInstall('${v.id}')" class="px-4 py-1.5 bg-[#444] hover:bg-[#555] rounded text-xs font-bold text-white flex items-center space-x-1"><i data-lucide="download" class="w-3.5 h-3.5"></i><span>Install</span></button>`;
+                
+                return `
+                <div class="flex items-center justify-between px-6 py-4 hover:bg-[#2b2b2b]">
+                    <div class="overflow-hidden pr-4 flex-1 min-w-0">
+                        <div class="font-bold text-gray-100 truncate">${v.name}</div>
+                        ${state.userSettings.showUrls ? `<div class="text-xs text-gray-500 font-mono" title="${v.url}">${displayUrl}</div>` : ''}
+                    </div>
+                    <div class="flex items-center space-x-3 shrink-0">${btnHtml}</div>
+                </div>`;
+            }).join('');
+
+            return `
+                <div class="bg-[#242424] rounded-lg border border-[#3a3a3a] overflow-hidden">
+                    <div class="bg-[#1e1e1e] px-4 py-3 border-b border-[#3a3a3a] flex items-center space-x-3">
+                        <i data-lucide="${icon}" class="w-4 h-4 ${iconColor}"></i>
+                        <h3 class="font-bold text-gray-200">${title}</h3>
+                    </div>
+                    <div class="divide-y divide-[#333]">${listHtml}</div>
+                </div>
+            `;
+        }
+
+        // --- ACTIONS ---
+        function handleInstall(id) {
+            if (!state.installedVersions.includes(id)) {
+                state.installedVersions.push(id);
+                localStorage.setItem('eagler_installed', JSON.stringify(state.installedVersions));
+                compileVersions();
+                updateUI();
+            }
+        }
+
+        function handleUninstall(id) {
+            state.installedVersions = state.installedVersions.filter(v => v !== id);
+            localStorage.setItem('eagler_installed', JSON.stringify(state.installedVersions));
+            if (state.activeVersion && state.activeVersion.id === id) state.activeVersion = null;
+            compileVersions();
+            updateUI();
+        }
+
+        function toggleModal(show) {
+            if (show) {
+                els.importModal.classList.remove('hide');
+                els.importName.value = '';
+                els.importUrl.value = '';
+            } else {
+                els.importModal.classList.add('hide');
+            }
+        }
+
+        function saveExtClient() {
+            const name = els.importName.value.trim();
+            const url = els.importUrl.value.trim();
+            if (!name || !url) return;
+
+            const newClient = { id: `ext-${Date.now()}`, name, url };
+            state.extClients.push(newClient);
+            localStorage.setItem('eagler_ext_clients', JSON.stringify(state.extClients));
+            
+            compileVersions();
+            toggleModal(false);
+            updateUI();
+        }
+
+        function removeExtClient(id) {
+            state.extClients = state.extClients.filter(c => c.id !== id);
+            localStorage.setItem('eagler_ext_clients', JSON.stringify(state.extClients));
+            if (state.activeVersion && state.activeVersion.id === id) state.activeVersion = null;
+            compileVersions();
+            updateUI();
+        }
+
+        function updateSettings() {
+            state.userSettings.externalUI = document.getElementById('setting-vorte').checked;
+            state.userSettings.showUrls = document.getElementById('setting-show-urls').checked;
+            state.userSettings.manifestUrl = document.getElementById('setting-url').value;
+            localStorage.setItem('eagler_settings', JSON.stringify(state.userSettings));
+        }
+
+        // --- GAME LAUNCH & VORTE UI ---
+        async function fetchClientHTML(url) {
+            // Fetch directly without CORS proxies as requested
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(`HTTP Error Status: ${res.status}`);
+            }
+            return await res.text();
+        }
+
+        function launchGame() {
+            if (!state.activeVersion) return;
+            
+            els.launcherScreen.classList.add('hide');
+            els.gameScreen.classList.remove('hide');
+            els.gameProgressOverlay.classList.remove('hide');
+            els.gameIframe.classList.add('hide'); // Hide iframe until loaded
+            els.vorteUiContainer.classList.add('hide');
+            
+            const displayUrl = state.activeVersion.url.length > 30 ? state.activeVersion.url.substring(0, 30) + '...' : state.activeVersion.url;
+            els.gameProgressText.innerText = `Fetching HTML from: ${displayUrl}`;
+            
+            let progress = 0;
+            state.progressInterval = setInterval(() => {
+                progress += Math.floor(Math.random() * 25) + 5;
+                if (progress >= 100) progress = 95; // Wait for fetch to complete before hitting 100
+                els.gameProgressBar.style.width = `${progress}%`;
+            }, 300);
+
+            fetchClientHTML(state.activeVersion.url)
+                .then(html => {
+                    clearInterval(state.progressInterval);
+                    els.gameProgressBar.style.width = `100%`;
+                    
+                    setTimeout(() => {
+                        const blob = new Blob([html], { type: 'text/html' });
+                        state.blobUrl = URL.createObjectURL(blob);
+                        els.gameIframe.src = state.blobUrl;
+                        
+                        els.gameProgressOverlay.classList.add('hide');
+                        els.gameIframe.classList.remove('hide');
+                        
+                        if (state.userSettings.externalUI) {
+                            els.vorteUiContainer.classList.remove('hide');
+                            els.vorteActiveName.innerText = state.activeVersion.name;
+                            
+                            // Show tip
+                            els.vorteTip.classList.remove('opacity-0', '-translate-x-8');
+                            els.vorteTip.classList.add('opacity-100', 'translate-x-0');
+                            setTimeout(() => {
+                                els.vorteTip.classList.remove('opacity-100', 'translate-x-0');
+                                els.vorteTip.classList.add('opacity-0', '-translate-x-8');
+                            }, 5000);
+                        }
+                    }, 500);
+                })
+                .catch(err => {
+                    clearInterval(state.progressInterval);
+                    console.warn("Failed to fetch HTML:", err);
+                    const errorHtml = `<html><body style="color:white;background:#111;text-align:center;padding:50px;font-family:sans-serif;"><h2>Client Load Error</h2><p>Attempted to fetch: ${state.activeVersion.url}</p><p style="color:red;">Error: Failed to fetch the HTML directly.</p><p>Details: ${err.message || 'Network error / CORS block'}</p></body></html>`;
+                    const blob = new Blob([errorHtml], { type: 'text/html' });
+                    state.blobUrl = URL.createObjectURL(blob);
+                    els.gameIframe.src = state.blobUrl;
+                    
+                    els.gameProgressOverlay.classList.add('hide');
+                    els.gameIframe.classList.remove('hide');
+                });
+        }
+
+        function quitGame() {
+            if (state.blobUrl) {
+                URL.revokeObjectURL(state.blobUrl);
+                state.blobUrl = null;
+            }
+            els.gameIframe.src = "about:blank"; // Clear memory
+            
+            els.gameScreen.classList.add('hide');
+            els.launcherScreen.classList.remove('hide');
+            toggleVorte(false);
+            
+            if (document.fullscreenElement) document.exitFullscreen();
+        }
+
+        function toggleVorte(show) {
+            if (show) {
+                els.vorteSidebar.classList.remove('-translate-x-full');
+                els.vorteSidebar.classList.add('translate-x-0');
+            } else {
+                els.vorteSidebar.classList.remove('translate-x-0');
+                els.vorteSidebar.classList.add('-translate-x-full');
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.error(e));
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        // Close dropdown if clicking outside
+        window.addEventListener('click', (e) => {
+            if (!e.target.closest('.relative.w-72') && state.isDropdownOpen) {
+                toggleDropdown();
+            }
         });
 
+        // Start
+        window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
